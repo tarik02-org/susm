@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install tools
+        uses: jdx/mise-action@v4
+
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy --toolchain 1.96.0
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check Protobuf
+        run: buf lint crates/protocol
+
+      - name: Check workspace
+        run: cargo check --workspace
+
+      - name: Run tests
+        run: cargo test --workspace
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  package:
+    name: Package (${{ matrix.target }})
+    needs: quality
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install tools
+        uses: jdx/mise-action@v4
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'amd64_arm64' || 'amd64' }}
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - id: package
+        name: Build package
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+          $version = ($metadata.packages | Where-Object name -eq 'susm-cli').version
+          cargo xtask package --version $version --target $env:TARGET
+
+          $bundle = Join-Path 'dist' "susm-$version-$env:TARGET"
+          $archive = "$bundle.zip"
+          Compress-Archive -Path $bundle -DestinationPath $archive -Force
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path -Leaf $archive)" |
+            Set-Content -NoNewline -Encoding ascii "$archive.sha256"
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: susm-${{ matrix.target }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14

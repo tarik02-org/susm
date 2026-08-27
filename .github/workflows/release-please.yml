@@ -1,0 +1,58 @@
+name: Prepare release
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Create release or update release PR
+    runs-on: ubuntu-latest
+    steps:
+      - id: previous-release-pr
+        name: Find existing release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh pr list --base master --label 'autorelease: pending' --state open
+          --json headRefOid --jq '"head=\(.[0].headRefOid // "")"'
+          >> "$GITHUB_OUTPUT"
+
+      - id: release
+        name: Run Release Please
+        uses: googleapis/release-please-action@v5
+
+      - id: release-pr
+        name: Find updated release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh pr list --base master --label 'autorelease: pending' --state open
+          --json headRefName,headRefOid
+          --jq '"branch=\(.[0].headRefName // "")\nhead=\(.[0].headRefOid // "")"'
+          >> "$GITHUB_OUTPUT"
+
+      - name: Run CI for release PR
+        if: steps.release-pr.outputs.head != '' && steps.release-pr.outputs.head != steps.previous-release-pr.outputs.head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ steps.release-pr.outputs.branch }}
+        run: gh workflow run ci.yml --ref "$RELEASE_BRANCH"
+
+      - name: Build release assets
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run release.yml --ref "$TAG_NAME" -f tag="$TAG_NAME"

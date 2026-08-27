@@ -1,0 +1,71 @@
+name: Release binaries
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Package (${{ matrix.target }})
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TARGET: ${{ matrix.target }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install tools
+        uses: jdx/mise-action@v4
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.target == 'aarch64-pc-windows-msvc' && 'amd64_arm64' || 'amd64' }}
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Build package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          cargo xtask package --version $version --target $env:TARGET
+
+          $bundle = Join-Path 'dist' "susm-$version-$env:TARGET"
+          $archive = "$bundle.zip"
+          Compress-Archive -Path $bundle -DestinationPath $archive -Force
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path -Leaf $archive)" |
+            Set-Content -NoNewline -Encoding ascii "$archive.sha256"
+
+      - name: Upload release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload $env:RELEASE_TAG dist\*.zip dist\*.sha256 --clobber
