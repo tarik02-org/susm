@@ -45,7 +45,7 @@ arguments = ["--listen", "127.0.0.1:9000"]
 
 Use `susm reload`, then `susm start <name>`. `susm --help` lists jobs, history, logs, enablement, upgrade, rollback, JSON output, and completions.
 
-Architectural decisions live in [`docs/adr`](docs/adr). Project terminology lives in [`CONTEXT.md`](CONTEXT.md).
+Architectural decisions live in [`docs/adr`](docs/adr). Project terminology lives in [`CONTEXT.md`](CONTEXT.md). See [`AI.md`](AI.md) for the project's AI-use disclosure.
 
 ## Design contracts
 
