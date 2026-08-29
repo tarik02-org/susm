@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package susm.host.v1;
+
+service HostControlService {
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+  rpc UnregisterUser(UnregisterUserRequest) returns (UnregisterUserResponse);
+  rpc GetControllerStatus(GetControllerStatusRequest) returns (GetControllerStatusResponse);
+  rpc RestartController(RestartControllerRequest) returns (RestartControllerResponse);
+}
+
+message RegisterUserRequest {}
+message UnregisterUserRequest {}
+message GetControllerStatusRequest {}
+message RestartControllerRequest {}
+message RegisterUserResponse {
+  HostStatus status = 1;
+}
+message UnregisterUserResponse {
+  HostStatus status = 1;
+}
+message GetControllerStatusResponse {
+  HostStatus status = 1;
+}
+message RestartControllerResponse {
+  HostStatus status = 1;
+}
+
+message HostStatus {
+  bool registered = 1;
+  bool controller_running = 2;
+  string manager_session_id = 3;
+  uint32 controller_process_id = 4;
+  string message = 5;
+}

@@ -1,0 +1,181 @@
+syntax = "proto3";
+
+package susm.control.v1;
+
+service ControlService {
+  rpc Reload(ReloadRequest) returns (ReloadResponse);
+  rpc ListWorkloads(ListWorkloadsRequest) returns (ListWorkloadsResponse);
+  rpc GetWorkload(GetWorkloadRequest) returns (GetWorkloadResponse);
+  rpc Start(StartRequest) returns (StartResponse);
+  rpc Stop(StopRequest) returns (StopResponse);
+  rpc Restart(RestartRequest) returns (RestartResponse);
+  rpc Run(RunRequest) returns (RunResponse);
+  rpc Cancel(CancelRequest) returns (CancelResponse);
+  rpc Rerun(RerunRequest) returns (RerunResponse);
+  rpc Enable(EnableRequest) returns (EnableResponse);
+  rpc Disable(DisableRequest) returns (DisableResponse);
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+  rpc GetExecution(GetExecutionRequest) returns (GetExecutionResponse);
+  rpc WatchWorkloads(WatchWorkloadsRequest) returns (stream WatchWorkloadsResponse);
+  rpc ReadLogs(ReadLogsRequest) returns (stream ReadLogsResponse);
+}
+
+message ReloadRequest {}
+
+message ReloadResponse {
+  bool changed = 1;
+  string generation = 2;
+  repeated Diagnostic diagnostics = 3;
+}
+
+message Diagnostic {
+  string path = 1;
+  string message = 2;
+}
+
+message ListWorkloadsRequest {
+  uint32 page_size = 1;
+  string cursor = 2;
+}
+
+message ListWorkloadsResponse {
+  repeated Workload workloads = 1;
+  string next_cursor = 2;
+}
+
+message GetWorkloadRequest {
+  string workload_id = 1;
+}
+
+message GetWorkloadResponse {
+  Workload workload = 1;
+}
+message StartRequest {
+  string workload_id = 1;
+}
+message StartResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+message StopRequest {
+  string workload_id = 1;
+}
+message StopResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+message RestartRequest {
+  string workload_id = 1;
+}
+message RestartResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+message RunRequest {
+  string workload_id = 1;
+}
+message RunResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+message CancelRequest {
+  string workload_id = 1;
+}
+message CancelResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+message RerunRequest {
+  string workload_id = 1;
+}
+message RerunResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+message EnableRequest {
+  string workload_id = 1;
+}
+message EnableResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+message DisableRequest {
+  string workload_id = 1;
+}
+message DisableResponse {
+  bool changed = 1;
+  Workload workload = 2;
+}
+
+message Workload {
+  string workload_id = 1;
+  string kind = 2;
+  bool enabled = 3;
+  string state = 4;
+  string execution_id = 5;
+  uint32 supervisor_process_id = 6;
+  string last_outcome = 7;
+  bool definition_missing = 8;
+  bool restart_required = 9;
+  bool policy_sync_pending = 10;
+  uint32 workload_process_id = 11;
+  uint32 attempt = 12;
+  string error = 13;
+}
+
+message ListExecutionsRequest {
+  string workload_id = 1;
+  uint32 page_size = 2;
+  string cursor = 3;
+}
+
+message ListExecutionsResponse {
+  repeated Execution executions = 1;
+  string next_cursor = 2;
+}
+
+message GetExecutionRequest {
+  string execution_id = 1;
+}
+
+message GetExecutionResponse {
+  Execution execution = 1;
+}
+
+message Execution {
+  string execution_id = 1;
+  string workload_id = 2;
+  string state = 3;
+  uint32 supervisor_process_id = 4;
+  int64 started_unix_ms = 5;
+  int64 ended_unix_ms = 6;
+  optional uint32 exit_code = 7;
+  string error = 8;
+  uint32 workload_process_id = 9;
+  uint32 attempt = 10;
+}
+
+message WatchWorkloadsRequest {}
+
+message WatchWorkloadsResponse {
+  uint64 revision = 1;
+  repeated Workload workloads = 2;
+}
+
+message ReadLogsRequest {
+  string workload_id = 1;
+  string execution_id = 2;
+  uint32 attempt = 3;
+  string stream = 4;
+  bool follow = 5;
+}
+
+message ReadLogsResponse {
+  string execution_id = 1;
+  uint32 attempt = 2;
+  string stream = 3;
+  uint64 sequence = 4;
+  int64 timestamp_unix_ms = 5;
+  bytes message = 6;
+  string gap = 7;
+}
