@@ -18,6 +18,8 @@ Cargo dependencies use workspace inheritance. `Cargo.lock` pins exact releases; 
 | --- | --- | --- |
 | CLI | `clap` 4.6 | Derive-based command model |
 | Shell completions | `clap_complete` 4.6 | Ahead-of-time PowerShell and common shell scripts; live workload-name completion remains SUSM-owned |
+| Human CLI tables | `comfy-table` 7.2 | Borderless, width-aware workload, execution, version, and detail views |
+| Terminal styling | `anstream` 1, `anstyle` 1 | Automatic Windows terminal color support with `NO_COLOR` and explicit always/never modes |
 | Protobuf runtime | `prost` 0.14 | Generated message types at protocol adapters |
 | Protobuf generation | Buf 1.72, `tonic-prost-build` 0.14 | Buf emits a `FileDescriptorSet`; `compile_fds` emits Prost messages and Tonic stubs without `protoc` |
 | TOML | `serde` 1, `toml` 1.1 | Strict raw structs with unknown fields rejected, followed by validated conversion into domain types |

@@ -5,6 +5,8 @@ This document fixes the v1 `susm` command surface and its automation rules. Each
 ## Commands
 
 ```text
+susm [--json] [--color auto|always|never] <command>
+
 susm config path
 susm reload
 
@@ -22,7 +24,8 @@ susm disable <workload>
 susm executions <workload>
 susm execution <execution-id>
 susm logs <workload> [--execution <id>] [--attempt <number>]
-          [--stream stdout|stderr|all] [--follow] [--raw]
+          [--stream stdout|stderr|all] [-f|--follow]
+          [-t|--timestamps] [--prefix]
 
 susm controller status
 susm controller restart
@@ -39,11 +42,13 @@ susm completions powershell|bash|zsh|fish
 
 Service-only commands reject jobs and job-only commands reject services with `FAILED_PRECONDITION`. `enable` and `disable` affect the next manager-session trigger only, as defined by the state machines. Lifecycle mutations return after the controller transaction commits; they do not wait for a process to reach running or terminal state.
 
-`logs` defaults to the active execution, or otherwise the newest execution, and all attempts and streams selected within it. `--raw` requires exactly one stream and writes only captured message bytes to stdout; gaps and diagnostics go to stderr. Non-raw output includes UTC timestamp, attempt, stream, and gap records. `--follow` reconnects from a new snapshot when a status-only subscription is lost, but it never fabricates bytes across a reported journal gap.
+`logs` defaults to the active execution, or otherwise the newest execution, and all attempts and streams selected within it. It writes captured stdout bytes to its stdout and captured stderr bytes to its stderr without decoding, prefixes, or ANSI rewriting. `--timestamps` adds an RFC 3339 UTC timestamp to each displayed line. `--prefix` adds the stream and attempt as `stdout#1 |`; both decorations remain line-aware across captured pipe-read chunks. Gaps and SUSM diagnostics go to stderr. `--follow` reconnects from a new snapshot when a status-only subscription is lost, but it never fabricates bytes across a reported journal gap.
 
 ## Output and exit behavior
 
-Human-readable output is the default. Global `--json` emits one stable JSON document for unary commands and newline-delimited JSON records for streams; it never serializes generated Protobuf objects directly. Diagnostics go to stderr.
+Human-readable output is the default. Collection commands use borderless tables; single-resource commands use aligned detail views. State, warnings, failures, and successful mutations use color when stdout or stderr is a terminal. Global `--color auto|always|never` controls SUSM decorations and defaults to `auto`, which also honors `NO_COLOR`. Workload log payload bytes are never recolored or stripped.
+
+Global `--json` emits one stable JSON document for unary commands and newline-delimited JSON records for streams; it never serializes generated Protobuf objects directly. JSON has no color. `--timestamps` and `--prefix` cannot be combined with `--json`, because every JSON log record already carries its timestamp, attempt, stream, sequence, and gap fields. Diagnostics go to stderr.
 
 Workload and execution status distinguish `supervisor_process_id` from `workload_process_id` and include the attempt number. Workload status also includes the latest active error. Zero means that no process or attempt currently occupies that field; the CLI does not present a live supervisor PID as the workload PID or call an execution `running` before `attempt-started` is committed.
 

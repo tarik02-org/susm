@@ -1,8 +1,9 @@
 #![cfg(windows)]
 
 mod installer;
+mod output;
 
-use std::{error::Error, io::Write, path::PathBuf, time::Duration};
+use std::{error::Error, path::PathBuf, time::Duration};
 
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{Shell, generate};
@@ -22,92 +23,151 @@ use susm_protocol::{
     pipe::{connect_for, control_pipe_name, current_user_sid, host_pipe_name},
 };
 
+use output::{ColorMode, HumanOutput, LogOptions};
+
 #[derive(Debug, Parser)]
-#[command(name = "susm", version, about = "Sucking User Service Manager")]
+#[command(
+    name = "susm",
+    version,
+    about = "Sucking User Service Manager",
+    arg_required_else_help = true
+)]
 struct Arguments {
+    /// Emit stable JSON instead of human-readable output.
     #[arg(long, global = true)]
     json: bool,
+    /// Control colors in SUSM output. Workload log bytes are never changed.
+    #[arg(long, global = true, value_enum, default_value_t)]
+    color: ColorMode,
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Inspect configuration paths.
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+    /// Atomically reload workload definitions.
     Reload,
+    /// List managed workloads.
     List,
+    /// Show one workload.
     Status {
+        /// Workload name.
         workload: String,
     },
+    /// Start a service.
     Start {
+        /// Service name.
         service: String,
     },
+    /// Stop a service.
     Stop {
+        /// Service name.
         service: String,
     },
+    /// Restart a service with a new execution.
     Restart {
+        /// Service name.
         service: String,
     },
+    /// Run a job.
     Run {
+        /// Job name.
         job: String,
     },
+    /// Cancel a running job.
     Cancel {
+        /// Job name.
         job: String,
     },
+    /// Run a job again with a new execution.
     Rerun {
+        /// Job name.
         job: String,
     },
+    /// Start a workload automatically in each manager session.
     Enable {
+        /// Workload name.
         workload: String,
     },
+    /// Disable automatic start for a workload.
     Disable {
+        /// Workload name.
         workload: String,
     },
+    /// List a workload's execution history.
     Executions {
+        /// Workload name.
         workload: String,
     },
+    /// Show one execution.
     Execution {
+        /// Execution UUID.
         execution_id: String,
     },
+    /// Print or follow workload output.
     Logs {
+        /// Workload name.
         workload: String,
+        /// Select an execution instead of the active or newest execution.
         #[arg(long)]
         execution: Option<String>,
+        /// Select one attempt. Zero means all attempts.
         #[arg(long)]
         attempt: Option<u32>,
+        /// Select stdout, stderr, or both.
         #[arg(long, value_enum, default_value_t = LogStream::All)]
         stream: LogStream,
-        #[arg(long)]
+        /// Continue printing new output.
+        #[arg(short, long)]
         follow: bool,
-        #[arg(long)]
-        raw: bool,
+        /// Prefix each displayed line with its UTC timestamp.
+        #[arg(short = 't', long, conflicts_with = "json")]
+        timestamps: bool,
+        /// Prefix each displayed line with its stream and attempt.
+        #[arg(long, conflicts_with = "json")]
+        prefix: bool,
     },
+    /// Inspect or restart the per-user controller.
     Controller {
         #[command(subcommand)]
         command: ControllerCommand,
     },
+    /// Install and register a per-user bundle.
     Install {
+        /// Confirm this is a per-user installation.
         #[arg(long)]
         user: bool,
+        /// Bundle directory or ZIP. Defaults to the directory beside susm.exe.
         source: Option<PathBuf>,
     },
+    /// Unregister and remove stable per-user binaries.
     Uninstall {
+        /// Confirm this is a per-user uninstallation.
         #[arg(long)]
         user: bool,
     },
+    /// Install and select another user bundle.
     Upgrade {
+        /// Bundle directory or ZIP.
         source: Option<PathBuf>,
         #[command(subcommand)]
         command: Option<UpgradeCommand>,
     },
+    /// Select a previously installed version.
     Rollback {
+        /// Exact version or unambiguous manifest identity prefix.
         version_or_manifest_prefix: String,
     },
+    /// List installed user versions.
     Versions,
+    /// Generate shell completion code.
     Completions {
+        /// Target shell.
         shell: Shell,
     },
 }
@@ -131,34 +191,40 @@ impl LogStream {
 
 #[derive(Debug, Subcommand)]
 enum ConfigCommand {
+    /// Print the workload-definition directory.
     Path,
 }
 
 #[derive(Debug, Subcommand)]
 enum ControllerCommand {
+    /// Show registration and controller process state.
     Status,
+    /// Ask the host to replace the controller process.
     Restart,
 }
 
 #[derive(Debug, Subcommand)]
 enum UpgradeCommand {
+    /// Remove unused versions and abandoned staging directories.
     Gc,
 }
 
 #[tokio::main]
 async fn main() {
-    if let Err(error) = run().await {
-        eprintln!("susm: {error}");
+    let arguments = Arguments::parse();
+    let mut output = HumanOutput::new(arguments.color);
+    if let Err(error) = run(arguments, &mut output).await {
+        let _ = output.error(error.as_ref());
         std::process::exit(1);
     }
 }
 
-async fn run() -> Result<(), Box<dyn Error>> {
-    let arguments = Arguments::parse();
+async fn run(arguments: Arguments, output: &mut HumanOutput) -> Result<(), Box<dyn Error>> {
+    let json_output = arguments.json;
     match arguments.command {
         Command::Config {
             command: ConfigCommand::Path,
-        } => println!("{}", config_directory()?.display()),
+        } => output.path(&config_directory()?)?,
         Command::Completions { shell } => {
             generate(
                 shell,
@@ -181,13 +247,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
             let installed = installer::install(&source)?;
             std::fs::create_dir_all(config_directory()?)?;
             let status = host_register().await?;
-            println!(
-                "installed {} ({}) at {}; controller pid {}",
-                installed.version,
-                installed.identity,
-                installed.path.display(),
-                status.controller_process_id
-            );
+            output.installed(&installed, status.controller_process_id)?;
         }
         Command::Uninstall { user } => {
             if !user {
@@ -195,22 +255,17 @@ async fn run() -> Result<(), Box<dyn Error>> {
             }
             let _ = host_unregister().await?;
             installer::uninstall_user()?;
-            println!("per-user SUSM registration and stable binaries removed");
+            output.uninstalled()?;
         }
         Command::Upgrade { source, command } => match (source, command) {
             (Some(source), None) => {
                 let installed = installer::install(&source)?;
                 let _ = host_restart().await?;
-                println!(
-                    "selected {} ({}) at {}",
-                    installed.version,
-                    installed.identity,
-                    installed.path.display()
-                );
+                output.selected(&installed)?;
             }
             (None, Some(UpgradeCommand::Gc)) => {
                 let removed = installer::garbage_collect()?;
-                println!("removed {removed} unused version or staging entries");
+                output.garbage_collected(removed)?;
             }
             _ => return Err("provide one bundle path or the gc subcommand".into()),
         },
@@ -219,16 +274,11 @@ async fn run() -> Result<(), Box<dyn Error>> {
         } => {
             let installed = installer::rollback(&version_or_manifest_prefix)?;
             let _ = host_restart().await?;
-            println!(
-                "selected {} ({}) at {}",
-                installed.version,
-                installed.identity,
-                installed.path.display()
-            );
+            output.selected(&installed)?;
         }
         Command::Versions => {
             let versions = installer::list_versions()?;
-            if arguments.json {
+            if json_output {
                 println!(
                     "{}",
                     serde_json::Value::Array(
@@ -245,27 +295,14 @@ async fn run() -> Result<(), Box<dyn Error>> {
                     )
                 );
             } else {
-                for version in versions {
-                    println!(
-                        "{}\t{}\t{}\t{} pins\t{}",
-                        version.version,
-                        version.identity,
-                        if version.current {
-                            "current"
-                        } else {
-                            "installed"
-                        },
-                        version.pin_count,
-                        version.path.display()
-                    );
-                }
+                output.versions(&versions)?;
             }
         }
         Command::Controller {
             command: ControllerCommand::Status,
         } => {
             let status = host_status().await?;
-            if arguments.json {
+            if json_output {
                 println!(
                     "{}",
                     json!({
@@ -276,36 +313,26 @@ async fn run() -> Result<(), Box<dyn Error>> {
                         "message": status.message,
                     })
                 );
-            } else if status.controller_running {
-                println!(
-                    "controller is running (pid {})",
-                    status.controller_process_id
-                );
-            } else if status.registered {
-                if status.message.is_empty() {
-                    println!("controller is registered and recovering");
-                } else {
-                    println!("controller is registered: {}", status.message);
-                }
             } else {
-                println!("user is not registered");
+                output.controller_status(&status)?;
             }
         }
         Command::Controller {
             command: ControllerCommand::Restart,
         } => {
             let status = host_restart().await?;
-            println!(
-                "controller restart requested for manager session {}",
-                status.manager_session_id
-            );
+            output.controller_restart(&status.manager_session_id)?;
         }
-        command => run_rpc(command, arguments.json).await?,
+        command => run_rpc(command, json_output, output).await?,
     }
     Ok(())
 }
 
-async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Error>> {
+async fn run_rpc(
+    command: Command,
+    json_output: bool,
+    output: &mut HumanOutput,
+) -> Result<(), Box<dyn Error>> {
     let sid = current_user_sid()?;
     let status = host_status().await?;
     if !status.controller_running || status.manager_session_id.is_empty() {
@@ -336,19 +363,14 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                     })
                 );
             } else if response.diagnostics.is_empty() {
-                println!(
-                    "configuration {} ({})",
-                    if response.changed {
-                        "reloaded"
-                    } else {
-                        "unchanged"
-                    },
-                    response.generation
-                );
+                output.reload(response.changed, &response.generation)?;
             } else {
-                for diagnostic in response.diagnostics {
-                    eprintln!("{}: {}", diagnostic.path, diagnostic.message);
-                }
+                output.reload_diagnostics(
+                    response
+                        .diagnostics
+                        .iter()
+                        .map(|diagnostic| (diagnostic.path.as_str(), diagnostic.message.as_str())),
+                )?;
                 return Err("configuration was not reloaded".into());
             }
         }
@@ -361,7 +383,11 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 .await?
                 .into_inner()
                 .workloads;
-            print_workloads(&workloads, json_output);
+            if json_output {
+                print_workloads_json(&workloads);
+            } else {
+                output.workloads(&workloads)?;
+            }
         }
         Command::Status { workload } => {
             let workload = client
@@ -372,7 +398,11 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 .into_inner()
                 .workload
                 .ok_or("controller returned no workload")?;
-            print_workloads(&[workload], json_output);
+            if json_output {
+                print_workloads_json(&[workload]);
+            } else {
+                output.workload(&workload)?;
+            }
         }
         Command::Start { service } => {
             let response = client
@@ -381,7 +411,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Stop { service } => {
             let response = client
@@ -390,7 +420,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Restart { service } => {
             let response = client
@@ -399,28 +429,28 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Run { job } => {
             let response = client
                 .run(RunRequest { workload_id: job })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Cancel { job } => {
             let response = client
                 .cancel(CancelRequest { workload_id: job })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Rerun { job } => {
             let response = client
                 .rerun(RerunRequest { workload_id: job })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Enable { workload } => {
             let response = client
@@ -429,7 +459,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Disable { workload } => {
             let response = client
@@ -438,7 +468,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 })
                 .await?
                 .into_inner();
-            print_mutation(response.changed, response.workload, json_output)?;
+            print_mutation(response.changed, response.workload, json_output, output)?;
         }
         Command::Executions { workload } => {
             let executions = client
@@ -456,19 +486,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                     serde_json::Value::Array(executions.iter().map(execution_json).collect())
                 );
             } else {
-                for execution in executions {
-                    println!(
-                        "{}\t{}\tsupervisor {}\tworkload {}\tattempt {}\t{}",
-                        execution.execution_id,
-                        execution.state,
-                        execution.supervisor_process_id,
-                        execution.workload_process_id,
-                        execution.attempt,
-                        execution
-                            .exit_code
-                            .map_or_else(|| "-".to_owned(), |value| value.to_string())
-                    );
-                }
+                output.executions(&executions)?;
             }
         }
         Command::Execution { execution_id } => {
@@ -481,18 +499,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
             if json_output {
                 println!("{}", execution_json(&execution));
             } else {
-                println!("execution: {}", execution.execution_id);
-                println!("workload:  {}", execution.workload_id);
-                println!("state:     {}", execution.state);
-                println!("supervisor process: {}", execution.supervisor_process_id);
-                println!("workload process:   {}", execution.workload_process_id);
-                println!("attempt:            {}", execution.attempt);
-                if let Some(exit_code) = execution.exit_code {
-                    println!("exit code: {exit_code}");
-                }
-                if !execution.error.is_empty() {
-                    println!("error:     {}", execution.error);
-                }
+                output.execution(&execution)?;
             }
         }
         Command::Logs {
@@ -501,11 +508,9 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
             attempt,
             stream,
             follow,
-            raw,
+            timestamps,
+            prefix,
         } => {
-            if raw && matches!(stream, LogStream::All) {
-                return Err("--raw requires --stream stdout or --stream stderr".into());
-            }
             let mut records = client
                 .read_logs(ReadLogsRequest {
                     workload_id: workload,
@@ -517,9 +522,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                 .await?
                 .into_inner();
             while let Some(record) = records.message().await? {
-                if raw {
-                    std::io::stdout().write_all(&record.message)?;
-                } else if json_output {
+                if json_output {
                     println!(
                         "{}",
                         json!({
@@ -533,13 +536,7 @@ async fn run_rpc(command: Command, json_output: bool) -> Result<(), Box<dyn Erro
                         })
                     );
                 } else {
-                    print!(
-                        "{} {} {}: {}",
-                        record.timestamp_unix_ms,
-                        record.attempt,
-                        record.stream,
-                        String::from_utf8_lossy(&record.message)
-                    );
+                    output.log_record(&record, LogOptions { timestamps, prefix })?;
                 }
             }
         }
@@ -559,6 +556,7 @@ fn print_mutation(
     changed: bool,
     workload: Option<Workload>,
     json_output: bool,
+    output: &mut HumanOutput,
 ) -> Result<(), Box<dyn Error>> {
     let workload = workload.ok_or("controller returned no workload")?;
     if json_output {
@@ -567,59 +565,16 @@ fn print_mutation(
             json!({ "changed": changed, "workload": workload_json(&workload) })
         );
     } else {
-        println!(
-            "{}: {}{}",
-            workload.workload_id,
-            workload.state,
-            if changed { "" } else { " (unchanged)" }
-        );
+        output.mutation(changed, &workload)?;
     }
     Ok(())
 }
 
-fn print_workloads(workloads: &[Workload], json_output: bool) {
-    if json_output {
-        println!(
-            "{}",
-            serde_json::Value::Array(workloads.iter().map(workload_json).collect())
-        );
-    } else if workloads.is_empty() {
-        println!("no workloads");
-    } else {
-        for workload in workloads {
-            println!(
-                "{}\t{}\t{}\t{}{}{}{}{}",
-                workload.workload_id,
-                workload.kind,
-                workload.state,
-                if workload.enabled {
-                    "enabled"
-                } else {
-                    "disabled"
-                },
-                if workload.supervisor_process_id == 0 {
-                    String::new()
-                } else {
-                    format!("\tsupervisor {}", workload.supervisor_process_id)
-                },
-                if workload.workload_process_id == 0 {
-                    String::new()
-                } else {
-                    format!("\tworkload {}", workload.workload_process_id)
-                },
-                if workload.attempt == 0 {
-                    String::new()
-                } else {
-                    format!("\tattempt {}", workload.attempt)
-                },
-                if workload.error.is_empty() {
-                    String::new()
-                } else {
-                    format!("\terror {}", workload.error)
-                }
-            );
-        }
-    }
+fn print_workloads_json(workloads: &[Workload]) {
+    println!(
+        "{}",
+        serde_json::Value::Array(workloads.iter().map(workload_json).collect())
+    );
 }
 
 fn workload_json(workload: &Workload) -> serde_json::Value {

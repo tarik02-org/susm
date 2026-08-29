@@ -23,6 +23,9 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+anstream = "1"
+anstyle = "1"
+comfy-table = "7.2"
 humantime-serde = "1.1"
 hyper-util = { version = "0.1", features = ["tokio"] }
 jiff = "0.2"
