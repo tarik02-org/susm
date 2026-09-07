@@ -8,9 +8,6 @@ members = [
     "crates/host",
     "crates/protocol",
     "crates/supervisor",
-    "spikes/tonic-named-pipe",
-    "spikes/windows-atomic-replace",
-    "spikes/windows-process-lifecycle",
     "xtask",
 ]
 resolver = "3"

@@ -4,7 +4,7 @@ This document defines the Win32 launch, process-tree, console-control, clock, an
 
 ## Workload launch
 
-The host, controller, and supervisors call `CreateEnvironmentBlock` with inheritance disabled against the manager-session user's primary token. They require the interactive profile to be loaded, copy the Unicode block into validated environment entries, and destroy the Win32 block after snapshotting it. They never inherit LocalSystem host variables or a stale controller-start environment. The process-lifecycle spike verifies that the fresh block contains the loaded user's `USERPROFILE`.
+The host, controller, and supervisors call `CreateEnvironmentBlock` with inheritance disabled against the manager-session user's primary token. They require the interactive profile to be loaded, copy the Unicode block into validated environment entries, and destroy the Win32 block after snapshotting it. They never inherit LocalSystem host variables or a stale controller-start environment.
 
 The supervisor owns one hidden private console and one kill-on-close Windows Job Object for its active execution. For every attempt it:
 
@@ -24,8 +24,6 @@ V1 workload stdin is always the null device; SUSM has no interactive input RPC. 
 The controller starts the supervisor with `CREATE_NO_WINDOW`. At startup the supervisor uses `AllocConsoleWithOptions(ALLOC_CONSOLE_MODE_NO_WINDOW)` to create a private console session that has no window. The workload inherits that console but starts a new process group. `ctrl-break` targets the workload root process-group ID, so the supervisor does not receive its own stop signal.
 
 The process adapter converts the literal argument vector with the standard Microsoft C runtime quoting algorithm. SUSM never concatenates config values into a shell command. Scripts require an explicitly configured shell executable.
-
-The executable spike in `spikes/windows-process-lifecycle` verifies hidden-console creation, suspended Job Object assignment, targeted `CTRL_BREAK`, descendant termination, and argument round-trip on Windows.
 
 ## Controller restart
 
@@ -53,4 +51,4 @@ A normal machine shutdown enters the same path for every live manager session th
 
 Runtime-journal compaction, journal-segment finalization, compressed-segment installation, and small pointer-file updates use a same-directory staging file. The writer flushes the staging file, closes any writable destination handle, then calls `ReplaceFileW` with write-through semantics. Initial installation uses `MoveFileExW` with replace-existing and write-through flags when no destination exists.
 
-Readers open files with read, write, and delete sharing. A reader that already holds the old file continues reading those bytes after replacement; a new open sees the replacement. The executable spike in `spikes/windows-atomic-replace` verifies both Rust's default reader sharing and the adapter's explicit sharing on Windows.
+Readers open files with read, write, and delete sharing. A reader that already holds the old file continues reading those bytes after replacement; a new open sees the replacement.

@@ -18,7 +18,7 @@
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value === 'susm-cli' || @.name.value === 'susm-config' || @.name.value === 'susm-controller' || @.name.value === 'susm-diagnostics' || @.name.value === 'susm-domain' || @.name.value === 'susm-host' || @.name.value === 'susm-protocol' || @.name.value === 'susm-supervisor' || @.name.value === 'tonic-named-pipe-spike' || @.name.value === 'windows-atomic-replace-spike' || @.name.value === 'windows-process-lifecycle-spike' || @.name.value === 'xtask')].version"
+          "jsonpath": "$.package[?(@.name.value === 'susm-cli' || @.name.value === 'susm-config' || @.name.value === 'susm-controller' || @.name.value === 'susm-diagnostics' || @.name.value === 'susm-domain' || @.name.value === 'susm-host' || @.name.value === 'susm-protocol' || @.name.value === 'susm-supervisor' || @.name.value === 'xtask')].version"
         }
       ],
       "changelog-type": "default",
