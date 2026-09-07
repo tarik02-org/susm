@@ -19,6 +19,8 @@ jobs:
   release-please:
     name: Create release or update release PR
     runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
     steps:
       - id: previous-release-pr
         name: Find existing release PR
