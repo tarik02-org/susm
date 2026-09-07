@@ -1,0 +1,22 @@
+[workspace]
+git_only = true
+publish = false
+release = false
+release_always = false
+
+[[package]]
+name = "susm-cli"
+release = true
+changelog_path = "./CHANGELOG.md"
+changelog_include = [
+  "susm-config",
+  "susm-controller",
+  "susm-diagnostics",
+  "susm-domain",
+  "susm-host",
+  "susm-protocol",
+  "susm-supervisor",
+  "xtask",
+]
+git_tag_name = "v{{ version }}"
+git_release_name = "v{{ version }}"
