@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package susm.runtime.v1;
+
+message RuntimeFrame {
+  uint32 format = 1;
+  oneof record {
+    Checkpoint checkpoint = 2;
+    RuntimeObservation observation = 3;
+    Acknowledgement acknowledgement = 4;
+  }
+}
+
+message Checkpoint {
+  string manager_session_id = 1;
+  string workload_id = 2;
+  string execution_id = 3;
+  string supervisor_id = 4;
+  uint32 incarnation = 5;
+  bytes execution_config_hash = 6;
+  uint32 attempt = 7;
+  string phase = 8;
+  uint64 last_sequence = 9;
+  uint64 committed_sequence = 10;
+  int64 retry_at_unix_ms = 11;
+  string resolved_executable = 12;
+  string resolved_working_directory = 13;
+  repeated EnvironmentValue resolved_environment = 14;
+}
+
+message EnvironmentValue {
+  string name = 1;
+  string value = 2;
+}
+
+message RuntimeObservation {
+  uint64 sequence = 1;
+  string kind = 2;
+  uint32 attempt = 3;
+  optional uint32 exit_code = 4;
+  string detail = 5;
+  int64 observed_unix_ms = 6;
+  bool terminal = 7;
+  uint32 workload_process_id = 8;
+}
+
+message Acknowledgement {
+  uint64 committed_sequence = 1;
+}

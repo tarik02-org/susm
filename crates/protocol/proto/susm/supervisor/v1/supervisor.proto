@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package susm.supervisor.v1;
+
+service SupervisorControlService {
+  rpc Attach(stream AttachRequest) returns (stream AttachResponse);
+}
+
+message AttachRequest {
+  oneof message {
+    Hello hello = 1;
+    Observation observation = 2;
+  }
+}
+
+message Hello {
+  string manager_session_id = 1;
+  string workload_id = 2;
+  string execution_id = 3;
+  string supervisor_id = 4;
+  uint32 incarnation = 5;
+  bytes execution_config_hash = 6;
+  uint64 last_sequence = 7;
+}
+
+message Observation {
+  uint64 sequence = 1;
+  string kind = 2;
+  optional uint32 exit_code = 3;
+  string detail = 4;
+  uint32 attempt = 5;
+  uint32 workload_process_id = 6;
+}
+
+message AttachResponse {
+  Welcome welcome = 1;
+  Command command = 2;
+  Acknowledgement acknowledgement = 3;
+}
+
+message Welcome {
+  ExecutionConfiguration execution_configuration = 1;
+  uint64 committed_sequence = 2;
+}
+
+message ExecutionConfiguration {
+  string workload_id = 1;
+  string execution_id = 2;
+  uint32 attempt = 3;
+  string kind = 4;
+  string executable = 5;
+  repeated string arguments = 6;
+  string working_directory = 7;
+  repeated EnvironmentValue environment_set = 8;
+  repeated string environment_unset = 9;
+  repeated uint32 success_exit_codes = 10;
+  string stop_method = 11;
+  uint64 stop_timeout_ms = 12;
+  string stop_executable = 13;
+  repeated string stop_arguments = 14;
+  bool capture_logs = 15;
+  uint64 segment_size = 16;
+  uint64 segment_age_ms = 17;
+  uint64 retention_size = 18;
+  bool retention_size_unlimited = 19;
+  uint64 retention_age_ms = 20;
+  bool retention_age_unlimited = 21;
+  string log_directory = 22;
+  string runtime_journal = 23;
+  string result_file = 24;
+  string restart_policy = 25;
+  uint32 max_restarts = 26;
+  bool max_restarts_unlimited = 27;
+  uint64 restart_reset_after_ms = 28;
+  uint64 restart_backoff_initial_ms = 29;
+  uint32 restart_backoff_multiplier = 30;
+  uint64 restart_backoff_maximum_ms = 31;
+  bytes execution_config_hash = 32;
+  string manager_session_id = 33;
+  bytes process_definition_hash = 34;
+  string supervisor_executable = 35;
+  string version_pin = 36;
+}
+
+message EnvironmentValue {
+  string name = 1;
+  string value = 2;
+}
+
+message AttemptResult {
+  bool launched = 1;
+  optional uint32 exit_code = 2;
+  string error = 3;
+  int64 started_unix_ms = 4;
+  int64 ended_unix_ms = 5;
+  bool stop_requested = 6;
+  bool forced = 7;
+  string outcome = 8;
+}
+
+message Command {
+  string kind = 1;
+  bytes payload = 2;
+}
+
+message PolicyUpdate {
+  repeated uint32 success_exit_codes = 1;
+  string restart_policy = 2;
+  uint32 max_restarts = 3;
+  bool max_restarts_unlimited = 4;
+  uint64 restart_reset_after_ms = 5;
+  uint64 restart_backoff_initial_ms = 6;
+  uint32 restart_backoff_multiplier = 7;
+  uint64 restart_backoff_maximum_ms = 8;
+  string stop_method = 9;
+  uint64 stop_timeout_ms = 10;
+  string stop_executable = 11;
+  repeated string stop_arguments = 12;
+  bool capture_logs = 13;
+  uint64 segment_size = 14;
+  uint64 segment_age_ms = 15;
+  uint64 retention_size = 16;
+  bool retention_size_unlimited = 17;
+  uint64 retention_age_ms = 18;
+  bool retention_age_unlimited = 19;
+  bytes policy_hash = 20;
+}
+
+message Acknowledgement {
+  uint64 committed_sequence = 1;
+}

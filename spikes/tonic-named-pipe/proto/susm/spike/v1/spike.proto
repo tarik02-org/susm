@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package susm.spike.v1;
+
+service SpikeService {
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc Watch(WatchRequest) returns (stream WatchResponse);
+}
+
+message PingRequest {
+  string payload = 1;
+}
+
+message PingResponse {
+  string payload = 1;
+  string caller_sid = 2;
+  uint32 caller_process_id = 3;
+}
+
+message WatchRequest {
+  uint64 watch_id = 1;
+  uint32 interval_milliseconds = 2;
+}
+
+message WatchResponse {
+  uint64 watch_id = 1;
+  uint64 sequence = 2;
+}
