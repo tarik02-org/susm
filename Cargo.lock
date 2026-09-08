@@ -1370,7 +1370,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "susm-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1396,7 +1396,7 @@ dependencies = [
 
 [[package]]
 name = "susm-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "humantime-serde",
  "parse-size",
@@ -1409,7 +1409,7 @@ dependencies = [
 
 [[package]]
 name = "susm-controller"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "prost",
@@ -1433,7 +1433,7 @@ dependencies = [
 
 [[package]]
 name = "susm-diagnostics"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "jiff",
  "serde_json",
@@ -1445,14 +1445,14 @@ dependencies = [
 
 [[package]]
 name = "susm-domain"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "uuid",
 ]
 
 [[package]]
 name = "susm-host"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "semver",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "susm-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "hyper-util",
  "prost",
@@ -1490,7 +1490,7 @@ dependencies = [
 
 [[package]]
 name = "susm-supervisor"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "crc32c",
@@ -2146,7 +2146,7 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "sha2",
