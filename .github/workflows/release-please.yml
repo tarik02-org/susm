@@ -1,0 +1,39 @@
+name: Prepare release
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Create release or update release PR
+    runs-on: ubuntu-latest
+    steps:
+      - id: release
+        name: Run Release Please
+        uses: googleapis/release-please-action@v5
+
+      - name: Run CI for release PR
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+        run: gh workflow run ci.yml --ref "$(jq -r '.[0].headBranchName' <<< "$RELEASE_PRS")"
+
+      - name: Build release assets
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run release.yml --ref "$TAG_NAME" -f tag="$TAG_NAME"
