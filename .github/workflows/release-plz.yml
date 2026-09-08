@@ -9,6 +9,7 @@ on:
 jobs:
   release:
     name: Publish release
+    if: "${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'chore: release v') }}"
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -17,27 +18,23 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install tools
-        uses: jdx/mise-action@v4
 
       - id: release
-        name: Run release-plz
-        uses: release-plz/action@v0.5
+        name: Resolve release version
+        run: echo "version=$(sed -n 's/^version = \"\([^\"]*\)\"/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
         with:
-          command: release
-          version: 0.3.162
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          tag_name: v${{ steps.release.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: v${{ steps.release.outputs.version }}
+          generate_release_notes: true
 
       - name: Build release assets
-        if: steps.release.outputs.releases_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ fromJSON(steps.release.outputs.releases)[0].tag }}
+          TAG_NAME: v${{ steps.release.outputs.version }}
         run: gh workflow run release.yml --ref "$TAG_NAME" -f tag="$TAG_NAME"
 
   release-pr:
@@ -73,5 +70,5 @@ jobs:
         if: steps.release-pr.outputs.prs_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_BRANCH: ${{ fromJSON(steps.release-pr.outputs.pr).head_branch }}
-        run: gh workflow run ci.yml --ref "$RELEASE_BRANCH"
+          RELEASE_PR: ${{ steps.release-pr.outputs.pr }}
+        run: gh workflow run ci.yml --ref "$(jq -r .head_branch <<< "$RELEASE_PR")"
